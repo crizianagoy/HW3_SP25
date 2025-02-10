@@ -14,24 +14,32 @@ def LUFactorization(A):
     :return: a tuple with (L, U)
     """
     n = len(A)
-    # Step 1
-    U = [([0 for c in range(n)] if not r == 0 else [a for a in A[0]]) for r in range(n)]
-    L = [[(1 if c==r else (A[r][0]/U[0][0] if c==0 else 0)) for c in range(n)] for r in range(n)]
 
-    #step 2
-    for j in range(1,n):  # j is row index
-        #(a)
-        for k in range(j,n):  # always j >= 1 (i.e., second row and higher)
-            U[j][k]=A[j][k]  # k is column index and scans from column j to n-1
-            for s in range(j):  #  s is column index for L and row index for U
-                U[j][k] -= L[j][s]*U[s][k]
-            #(b)
-            for i in range(k+1, n):
-                sig=0
-                for s in range(k):
-                    sig+=L[i][s]*U[s][k]
-                L[i][k]=(1/(U[k][k]))*(A[i][k]-sig)
-    return (L,U)
+    # Step 1: Initialize U and L matrices
+    U = [[0 if c != r else a for c, a in enumerate(A[r])] for r in range(n)]
+    L = [[1 if c == r else 0 for c in range(n)] for r in range(n)]
+
+    for k in range(n):  # Ensuring k is properly scoped
+        # Check for zeros and perform partial pivoting
+        if abs(U[k][k]) < 1e-12:  # Pivot if diagonal is too small
+            for swap_row in range(k + 1, n):
+                if abs(U[swap_row][k]) > abs(U[k][k]):
+                    U[k], U[swap_row] = U[swap_row], U[k]  # Swap rows in U
+                    L[k], L[swap_row] = L[swap_row], L[k]  # Swap rows in L
+                    break  # Stop after the first swap
+
+        print("U matrix before error:", U)
+        print(f"U[{k}][{k}] =", U[k][k])
+
+        if U[k][k] == 0:
+            raise ValueError(f"Zero detected in U[{k}][{k}], LU factorization failed!")
+
+        for i in range(k + 1, n):
+            L[i][k] = A[i][k] / U[k][k]  # Compute L values
+            for j in range(k, n):
+                U[i][j] -= L[i][k] * U[k][j]  # Modify U values
+
+    return L, U
 
 def BackSolve(A,b,UT=True):
     """
@@ -41,22 +49,23 @@ def BackSolve(A,b,UT=True):
     :param UT: boolean of upper triangular (True) or lower triangular (False)
     :return: the solution vector x, from Ax=b
     """
-    nRows=len(b)
-    nCols=nRows
-    x=[0]*nRows
+    nRows = len(b)
+    b = [row if isinstance(row, (int, float)) else row[0] for row in b]
+    x = [0] * nRows  # Initialize x as a list of zeros
+
     if UT:
-        for nR in range(nRows-1,-1,-1):
-            s=0
-            for nC in range(nR+1,nRows):
-                s+=A[nR][nC]*x[nC]
-            x[nR]=1/A[nR][nR]*(b[nR]-s)
+        for nR in range(nRows - 1, -1, -1):  # Backward substitution
+            s = 0
+            for nC in range(nR + 1, nRows):
+                s += A[nR][nC] * x[nC]
+            x[nR] = (b[nR] - s) / A[nR][nR]  # Directly use b[nR]
     else:
-        for nR in range(nRows):
-            s=0
+        for nR in range(nRows):  # Forward substitution
+            s = 0
             for nC in range(nR):
-                s+=A[nR][nC]*x[nC]
-            x[nR]=1/A[nR][nR]*(b[nR]-s)
-    B = mo.checkMatrixSoln(A, x, False)
+                s += A[nR][nC] * x[nC]
+            x[nR] = (b[nR] - s) / A[nR][nR]  # Directly use b[nR]
+
     return x
 
 def Doolittle(Aaug):
@@ -73,7 +82,7 @@ def Doolittle(Aaug):
     B=mo.MatrixMultiply(L,U)
     y=BackSolve(L,b, UT=False)
     x=BackSolve(U,y, UT=True)
-    return x  #x should be a column vector of form [[], [], [], ..., []]
+    return x, "Doolittle"
 
 def main():
     A=[[3, 5, 2],[0,8,2],[6,2,8]]
